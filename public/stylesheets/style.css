@@ -6,7 +6,6 @@ body {
   margin: 0px;
 }
 
-
 div.bottom {
   background-color: #3174c4;
   color: #eeeeec;
@@ -70,6 +69,11 @@ pre {
 a {
   /* color: #00B7FF; */
   color : #f57900;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
 }
 
 div.articles {
