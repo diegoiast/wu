@@ -1,20 +1,30 @@
-var express = require('express');
-var router = express.Router();
+import express from 'express';
 
-var whatsupCrawler = require("../WhatsupCrawler");
-var whatsupRSS = require("../WhatsupRSS");
-var whatsup = require("../WhatsupMemoryCached");
-var impl = new whatsupRSS("http://whatsup.org.il")
-var client = new whatsup(impl)
+import WhatsupCrawler from '../WhatsupCrawler.js';
+import WhatsupRSS from '../WhatsupRSS.js';
+import WhatsupMemoryCached from '../WhatsupMemoryCached.js';
 
-router.get('/:id', function(req, res, next) {
-    var topicID = req.params.id;
-    client.fetchForumTopic(topicID, function(replies, error) {
+const router = express.Router();
+const impl = new WhatsupCrawler('http://whatsup.org.il');
+// const impl = new WhatsupRSS('http://whatsup.org.il');
+
+const client = new WhatsupMemoryCached(impl);
+
+router.get('/:id', async (req, res) => {
+    try {
+        const topicID = req.params.id;
+        const replies = await client.fetchForumTopic(topicID);
         res.render('topic', {
             subject: replies.subject,
-            posts: replies.posts
+            posts: replies.posts,
         });
-    });
+    } catch (error) {
+        console.error(error);
+        res.render('topic', {
+            subject: null,
+            posts: [],
+        });
+    }
 });
 
-module.exports = router;
+export default router;

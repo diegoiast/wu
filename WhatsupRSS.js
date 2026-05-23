@@ -1,131 +1,81 @@
-'use strict'
+import WhatsupCrawler from './WhatsupCrawler.js';
+import { parseStringPromise } from 'xml2js';
 
-var request = require("request");
-var parseXmlString = require('xml2js').parseString;
-var cheerio = require("cheerio");
-var url = require('url');
-var WhatsupCrawler = require("./WhatsupCrawler");
+function parseHTML(rawHTML, nullifyIfEmpty = false) {
+    const text = rawHTML?.toString?.() ?? '';
 
-function parseHTML(rawHTML, nullifyIfEmpty=false) {
-    var text = cheerio("<div>").html(rawHTML).text().trim();
-    if (!nullifyIfEmpty) {
-        return text;
-    }
-    return text.length == 0 ? null : text
+    if (!nullifyIfEmpty) return text.trim();
+    return text.trim().length === 0 ? null : text.trim();
 }
 
 function getArticleID(articleURL) {
-    var url_parts = url.parse(articleURL, true);
-    var query = url_parts.query;
-    return query.sid;
+    const u = new URL(articleURL);
+    return u.searchParams.get('sid');
 }
 
 function getForumID(articleURL) {
-    var url_parts = url.parse(articleURL, true);
-    var query = url_parts.query;
-    return query.t;
+    const u = new URL(articleURL);
+    return u.searchParams.get('t');
 }
 
-function getArticles(baseURL, items, getItem) {
-    var articles = [];
-    for (var i in items) {
-        var item = items[i];
-        var article = {};
-        article.title = parseHTML(item.title[0]);
-        article.number = getItem(item.link[0]);
-        article.date = parseHTML(item.pubDate[0]);
-        article.category = null;
-        article.summary = parseHTML(item.description[0]);
-        articles.push(article)
-    }
-    return articles
+function getArticles(items, getItem) {
+    return items.map((item) => ({
+        title: parseHTML(item.title?.[0]),
+        number: getItem(item.link?.[0]),
+        date: parseHTML(item.pubDate?.[0]),
+        category: null,
+        summary: parseHTML(item.description?.[0]),
+    }));
 }
 
-// this is not a full implementation, as some parts will use 
-// a crawler. The main page *IS* fetched from the RSS feed
-class WhatsupRSS {
+export default class WhatsupRSS {
     constructor(baseURL) {
         this.baseURL = baseURL;
         this.crawler = new WhatsupCrawler(baseURL);
     }
 
-    fetchBackendRSS(backend, getItem, callback) {
-        var url = this.baseURL + backend;
-        var options = {
-            method: 'GET',
-            url: url,
-            encoding: 'utf-8' 
-        };
+    async fetchBackendRSS(backend, getItem) {
+        const url = `${this.baseURL}${backend}`;
 
-        var vvv = this.baseURL;
-        request(options, function(err, body) {
-            if (err != null) {
-                console.log(err); 
-                callback(null, err);
-                return;
-            }
-            parseXmlString(body.body, function (err, result) {
-                var articles = getArticles(vvv, result.rss.channel[0].item, getItem);
-                callback(articles, null);
-            });
-        });
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`RSS fetch failed: ${res.status}`);
+
+        const xml = await res.text();
+        const result = await parseStringPromise(xml);
+
+        const items = result?.rss?.channel?.[0]?.item ?? [];
+
+        return getArticles(items, getItem);
     }
 
-    fetchArticlesRSS(callback) {
-        this.fetchBackendRSS("/backend.php?utf8=1", getArticleID, callback)
+    async fetchArticlesRSS() {
+        return this.fetchBackendRSS(
+            '/backend.php?utf8=1',
+            getArticleID
+        );
     }
 
-    fetchTopicsRSS(callback) {
-        this.fetchBackendRSS("/backend-forums.php?utf8=1", getForumID, callback)
+    async fetchTopicsRSS() {
+        return this.fetchBackendRSS(
+            '/backend-forums.php?utf8=1',
+            getForumID
+        );
     }
 
-    fetchMainPage(callback) {
-        var mainPage = {
-            articles: null,
-            forums: null 
-        }
+    async fetchMainPage() {
+        const [articles, forums] = await Promise.all([
+            this.fetchArticlesRSS(),
+            this.fetchTopicsRSS(),
+        ]);
 
-        var count = 0;
-        this.fetchArticlesRSS(function (articles, err) {
-            count ++;
-            if (err != null) {
-                console.log("Failed fetching articles RSS")
-                console.log(err);
-                callback(null, err);
-                return;
-            }
-
-            mainPage.articles = articles;
-            if (count == 2) {
-                callback(mainPage, null);
-            } else {
-                console.log("Read articles, waiting for topics to arrive")
-            }
-        });
-
-        this.fetchTopicsRSS(function (topics, err){
-            count ++;
-            if (err != null) {
-                console.log(err); 
-                callback(null, err);
-                return;
-            }
-            mainPage.forums = topics;
-            if (count == 2) {
-                callback(mainPage, null);
-            } else {
-                console.log("Read topics, waiting for articles to arrive")
-            }
-        });
+        return { articles, forums };
     }
 
-    fetchArticle(articleID, callback) {
-        this.crawler.fetchArticle(articleID, callback)
+    async fetchArticle(id) {
+        return this.crawler.fetchArticle(id);
     }
 
-    fetchForumTopic(topicID, callback) {
-        this.crawler.fetchForumTopic(topicID, callback)
+    async fetchForumTopic(id) {
+        return this.crawler.fetchForumTopic(id);
     }
 }
-
-module.exports = WhatsupRSS

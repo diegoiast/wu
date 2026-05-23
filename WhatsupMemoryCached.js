@@ -1,61 +1,58 @@
-var DefaultCacheTimeout = 1000 * 90; // 90 seconds of time cache
+import memoryCache from 'memory-cache';
 
-class WhatsupMemoryCached {
+const DefaultCacheTimeout = 1000 * 60*60; // a full hour
+const ArticleCacheTimeout = 1000 * 60*60*3; // 3 hours
+const ForumsCacheTimeout = 1000 * 60*10; // 10 minutes
+
+export default class WhatsupMemoryCached {
     constructor(whastUpImpl) {
-        this.cache = require('memory-cache');
+        this.cache = memoryCache;
         this.client = whastUpImpl;
     }
 
-    fetchMainPage(callback) {
-        var mainPage = this.cache.get("main")
-        if (mainPage != null) {
-            console.log("Main page was found in cache - using it");
-            callback(mainPage, null);
-            return null;
-        }
+    async fetchMainPage() {
+        const cached = this.cache.get('main');
 
-        console.log("Main page is not in cache - getting");
-        var _cache = this.cache;
-        this.client.fetchMainPage(function(mainPage, error) {
-            _cache.put("main", mainPage, DefaultCacheTimeout );
-            console.log("Main page stored in cache")
-            callback(mainPage, null);
-        });
+        if (cached) {
+            console.log('Main page was found in cache - using it');
+            return cached;
+        }
+        console.log('Main page is not in cache - getting');
+        const mainPage = await this.client.fetchMainPage();
+        this.cache.put('main', mainPage, DefaultCacheTimeout);
+        console.log('Main page stored in cache');
+        return mainPage;
     }
 
-    fetchArticle(articleID, callback) {
-        var article = this.cache.get("article/" + articleID)
-        if (article != null) {
-            console.log("Article " + articleID + " was found in cache - using it");
-            callback(article, null);
-            return null;
+    async fetchArticle(articleID) {
+        const key = `article/${articleID}`;
+        const cached = this.cache.get(key);
+
+        if (cached) {
+            console.log(`Article ${articleID} was found in cache - using it`);
+            return cached;
         }
 
-        console.log("Article " + articleID  +" is not in cache - getting");
-        var _cache = this.cache;
-        this.client.fetchArticle( articleID, function(article, error) {
-            _cache.put("article/" + articleID, article, DefaultCacheTimeout );
-            console.log("Article " + articleID + " stored in cache")
-            callback(article, null);
-        });
+        console.log(`Article ${articleID} is not in cache - getting`);
+        const article = await this.client.fetchArticle(articleID);
+        this.cache.put(key, article, ArticleCacheTimeout);
+        console.log(`Article ${articleID} stored in cache`);
+        return article;
     }
 
-    fetchForumTopic(topicID, callback) {
-        var topic = this.cache.get("forum/" + topicID)
-        if (topic != null) {
-            console.log("Forum topic " + topicID + " was found in cache - using it");
-            callback(topic, null);
-            return null;
+    async fetchForumTopic(topicID) {
+        const key = `forum/${topicID}`;
+        const cached = this.cache.get(key);
+
+        if (cached) {
+            console.log(`Forum topic ${topicID} was found in cache - using it`);
+            return cached;
         }
 
-        console.log("Forum topic " + topicID  +" is not in cache - getting");
-        var _cache = this.cache;
-        this.client.fetchForumTopic( topicID, function(topic, error) {
-            _cache.put("forum/" + topicID, topic, DefaultCacheTimeout );
-            console.log("Forum topic " + topicID + " stored in cache")
-            callback(topic, null);
-        });
+        console.log(`Forum topic ${topicID} is not in cache - getting`);
+        const topic = await this.client.fetchForumTopic(topicID);
+        this.cache.put(key, topic, ForumsCacheTimeout);
+        console.log(`Forum topic ${topicID} stored in cache`);
+        return topic;
     }
-};
-
-module.exports = WhatsupMemoryCached;
+}

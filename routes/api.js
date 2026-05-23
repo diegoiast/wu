@@ -1,68 +1,62 @@
-var express = require('express');
-var router = express.Router();
+import express from 'express';
 
-// var whatsup = require("../WhatsupCrawler");
-// var whatsup = require("../WhatsupMemoryCached");
-var whatsup = require("../WhatsupRSS");
-var client = new whatsup("https://whatsup.org.il")
+import WhatsupCrawler from '../WhatsupCrawler.js';
+import WhatsupMemoryCached from '../WhatsupMemoryCached.js';
+import WhatsupRSS from '../WhatsupRSS.js';
 
-router.get('/index', function(req, res, next) {
-  client.fetchMainPage(function(mainPage, error){
-    if (error != null) {
-      console.log(error)
-      res.render("error")
-      return;
+const router = express.Router();
+const ClientClass = WhatsupCrawler; // swap implementation here
+// const ClientClass = WhatsupRSS; // swap implementation here
+const client = new ClientClass('https://whatsup.org.il');
+
+router.get('/index', async (req, res) => {
+    try {
+        const mainPage = await client.fetchMainPage();
+        res.json(mainPage);
+    } catch (error) {
+        console.error(error);
+        res.render('error');
     }
-    res.json(mainPage);
-  });
 });
 
-router.get('/articles', function(req, res, next) {
-  client.fetchMainPage(function(mainPage, error){
-    if (error != null) {
-      console.log(error)
-      res.json(null);
-      return;
-    }
-
-    res.json(mainPage.articles);
-  });
-});
-
-router.get('/article/:id', function(req, res, next) {
-  var articleID = req.params.id;
-  client.fetchArticle( articleID, function(article, error) {
-    if (error != null) {
-        console.log(error)
+router.get('/articles', async (req, res) => {
+    try {
+        const mainPage = await client.fetchMainPage();
+        res.json(mainPage.articles);
+    } catch (error) {
+        console.error(error);
         res.json(null);
-        return;
     }
-    res.json(article);
-  });
 });
 
-router.get("/forums", function(req, res, next) {
-  client.fetchMainPage(function(mainPage, error){
-    if (error != null) {
-      console.log(error)
-      res.json(null);
-      return;
-    }
-
-    res.json(mainPage.forums);
-  });
-});
-
-router.get("/forum/:id", function(req, res, next) {
-  var articleID = req.params.id;
-  client.fetchForumTopic(articleID, function(forumTopic, error) {
-    if (error != null) {
-        console.log(error)
+router.get('/article/:id', async (req, res) => {
+    try {
+        const article = await client.fetchArticle(req.params.id);
+        res.json(article);
+    } catch (error) {
+        console.error(error);
         res.json(null);
-        return;
     }
-    res.json(forumTopic);
-  });
 });
 
-module.exports = router;
+router.get('/forums', async (req, res) => {
+    try {
+        const mainPage = await client.fetchMainPage();
+        res.json(mainPage.forums);
+    } catch (error) {
+        console.error(error);
+        res.json(null);
+    }
+});
+
+router.get('/forum/:id', async (req, res) => {
+    try {
+        const forumTopic = await client.fetchForumTopic(req.params.id);
+        res.json(forumTopic);
+    } catch (error) {
+        console.error(error);
+        res.json(null);
+    }
+});
+
+export default router;

@@ -1,31 +1,30 @@
-'use strict'
+import express from 'express';
 
-var express = require('express');
-var router = express.Router();
+import WhatsupCrawler from '../WhatsupCrawler.js';
+import WhatsupRSS from '../WhatsupRSS.js';
+import WhatsupMemoryCached from '../WhatsupMemoryCached.js';
 
-var whatsupCrawler = require("../WhatsupCrawler");
-var whatsupRSS = require("../WhatsupRSS");
-var whatsup = require("../WhatsupMemoryCached");
-var impl = new whatsupRSS("http://whatsup.org.il")
-var client = new whatsup(impl)
+const router = express.Router();
+const impl = new WhatsupCrawler('http://whatsup.org.il');
+// const impl = new WhatsupRSS('http://whatsup.org.il');
+const client = new WhatsupMemoryCached(impl);
 
-router.get('/:id', function(req, res, next) {
-    var articleID = req.params.id;
-    client.fetchArticle( articleID, function(article, error) {
-        if (error != null) {
-            console.log(error)
-            res.render("error")
-            return;
-        }
+router.get('/:id', async (req, res) => {
+    try {
+        const articleID = req.params.id;
+        const article = await client.fetchArticle(articleID);
 
         res.render('article', {
             title: article.title,
             date: article.date,
             author: article.author,
             content: article.content,
-            comments: article.replies
+            comments: article.replies,
         });
-    });
+    } catch (error) {
+        console.error(error);
+        res.render('error');
+    }
 });
 
-module.exports = router;
+export default router;
